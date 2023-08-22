@@ -1,0 +1,18 @@
+[Unit]
+Description=A KOSync server implemented in Rust
+After=network.target remote-fs.target nss-lookup.target
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/conf.d/kosync
+ExecStart=/usr/local/bin/kosync
+WorkingDirectory=/var/lib/kosync
+User=kosync
+Group=kosync
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=/var/lib/kosync
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
