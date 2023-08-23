@@ -54,22 +54,22 @@ pub async fn auth<B>(
     match (check("x-auth-user"), check("x-auth-key")) {
         (Some(user), Some(key)) => match db.get_user(user) {
             Ok(Some(k)) if k == key => {
-                tracing::info!("authenticated user {}", user);
+                tracing::debug!("{} - AUTH - ok", user);
                 let user = user.to_owned();
                 req.extensions_mut().insert(Authed(user));
                 Ok(next.run(req).await)
             }
             Ok(_) => {
-                tracing::warn!("user {} is unauthorized: {:?}", user, headers);
+                tracing::warn!("{} - AUTH - unauthorized: {:?}", user, headers);
                 Err(Error::Unauthorized)
             },
             Err(_) => {
-                tracing::error!("authentication for user {} tripped an internal server error: {:?}", user, headers);
+                tracing::error!("{} - AUTH - tripped an internal server error: {:?}", user, headers);
                 Err(Error::Internal)
             },
         },
         _ => {
-            tracing::warn!("no auth tokens: {:?}", headers);
+            tracing::warn!("N/A - AUTH - no tokens in headers {:?}", headers);
             Err(Error::Unauthorized)
         },
     }
@@ -77,8 +77,10 @@ pub async fn auth<B>(
 
 #[instrument(level = Level::DEBUG)]
 pub async fn auth_user(
+    Extension(Authed(user)): Extension<Authed>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>
 ) -> impl IntoResponse {
+    tracing::info!("{} - LOGIN", user);
     (StatusCode::OK, Json(json!({"authorized": "OK"})))
 }
 
@@ -95,23 +97,23 @@ pub async fn create_user(
     Json(data): Json<CreateUser>,
 ) -> Result<impl IntoResponse, Error> {
     if !is_valid_key_field(&data.username) || !is_valid_field(&data.password) {
-        tracing::error!("create_user: invalid request: {:?}", data);
+        tracing::error!("N/A - REGISTER - invalid request: {:?}", data);
         return Err(Error::InvalidRequest);
     }
     if let Ok(Some(_)) = db.get_user(&data.username) {
-        tracing::warn!("create_user: user {} already exists", data.username);
+        tracing::warn!("{} - REGISTER - user already exists", data.username);
         return Err(Error::UserExists);
     }
     match db.put_user(&data.username, &data.password) {
         Ok(_) => {
-            tracing::info!("create_user: created {}", data.username);
+            tracing::info!("{} - REGISTER - ok", data.username);
             Ok((
                 StatusCode::CREATED,
                 Json(json!({"username": data.username})),
             ))
         },
         Err(_) => {
-            tracing::error!("create_user: internal server error when creating {}", data.username);
+            tracing::error!("{} - REGISTER - tripped an internal server error", data.username);
             Err(Error::Internal)
         },
     }
@@ -127,20 +129,20 @@ pub async fn get_progress(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Result<impl IntoResponse, Error> {
     if !is_valid_key_field(&doc) {
-        tracing::error!("   get_progress: 'document' field not provided by {}", user);
+        tracing::error!("{} - PULL - 'document' field not provided", user);
         return Err(Error::DocumentFieldMissing);
     }
     match db.get_doc(&user, &doc) {
         Ok(Some(value)) => {
-            tracing::info!("   get_progress: {} <= {} on {} by {}", doc, value.percentage, value.device, user);
+            tracing::info!("{} - PULL - {} <= {} on {}", user, doc, value.percentage, value.device);
             Ok(Json(value).into_response())
         },
         Ok(None) => {
-            tracing::info!("   get_progress: {} <= None by {}", doc, user);
+            tracing::info!("{} - PULL - {} <= None", user, doc);
             Ok(Json(json!({ "document": doc })).into_response())
         },
         Err(_) => {
-            tracing::error!("   get_progress: {} tripped an internal server error", user);
+            tracing::error!("{} - PULL - tripped an internal server error", user);
             Err(Error::Internal)
         },
     }
@@ -156,14 +158,14 @@ pub async fn update_progress(
     data.timestamp = Some(now_timestamp());
     match db.put_doc(&user, &data.document, &data) {
         Ok(_) => {
-            tracing::info!("update_progress: {} => {} on {} by {}", data.document, data.percentage, data.device, user);
+            tracing::info!("{} - PUSH - {} => {} on {}", user, data.document, data.percentage, data.device);
             Ok(Json(json!({
                 "document": data.document,
                 "timestamp": data.timestamp
             })))
         },
         Err(_) => {
-            tracing::error!("update_progress: {} tripped an internal server error", user);
+            tracing::error!("{} - PUSH - tripped an internal server error", user);
             Err(Error::Internal)
         },
     }
@@ -171,7 +173,9 @@ pub async fn update_progress(
 
 #[instrument(level = Level::DEBUG)]
 pub async fn healthcheck(
+    Extension(Authed(user)): Extension<Authed>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
+    tracing::info!("{} - HEALTH CHECK", user);
     (StatusCode::OK, Json(json!({"state": "OK"})))
 }

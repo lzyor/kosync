@@ -27,7 +27,7 @@ use tokio::{
     signal::unix::{signal, SignalKind},
     time::sleep,
 };
-use tower_http::{trace::TraceLayer};
+use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 
 use shadow_rs::shadow;
@@ -55,11 +55,11 @@ async fn main() {
     let config_addr: SocketAddr = env::var("KOSYNC_ADDR")
         .unwrap_or(defs::DEFAULT_ADDR.to_string())
         .parse()
-        .expect("[INIT] Failed to parse addr");
+        .expect("CONFIG - failed to parse addr");
     let config_db_path = defs::DEFAULT_DB_PATH;
 
     // initialize database and router
-    let db = db::DB::new(&config_db_path).expect("[INIT] Failed to open database");
+    let db = db::DB::new(&config_db_path).expect("CONFIG - failed to open database");
     let router = Router::new()
         .route("/users/create", post(api::create_user))
         .merge(
@@ -82,12 +82,12 @@ async fn main() {
 
     // start server
     if env::var("KOSYNC_NO_TLS").ok().is_some() {
-        tracing::info!("[INIT] listening on {} ", config_addr);
+        tracing::info!("INIT - listening on {} ", config_addr);
         axum_server::bind(config_addr)
             .handle(handle)
             .serve(router.into_make_service_with_connect_info::<SocketAddr>())
             .await
-            .expect("[INIT] Failed to start server");
+            .expect("INIT - failed to start server");
     } else {
         // configure certificate and private key
         let tls_config = RustlsConfig::from_pem_file(
@@ -97,17 +97,17 @@ async fn main() {
                     .unwrap_or(defs::DEFAULT_TLS_PRIVKEY.to_string())),
             )
             .await
-            .expect("[INIT] Failed to parse TLS config");
+            .expect("CONFIG - failed to parse TLS config");
 
-        tracing::info!("[INIT] listening on {} [TLS]", config_addr);
+        tracing::info!("INIT - listening on {} [TLS]", config_addr);
         axum_server::bind_rustls(config_addr, tls_config)
             .handle(handle)
             .serve(router.into_make_service_with_connect_info::<SocketAddr>())
             .await
-            .expect("[INIT] Failed to start server");
+            .expect("INIT - failed to start server");
     }
 
-    tracing::info!("[EXIT] server is shutting down");
+    tracing::info!("EXIT - server is shutting down");
 }
 
 // graceful shutdown on SIGINT & SIGTERM
@@ -115,8 +115,8 @@ async fn graceful_shutdown(handle: Handle) {
     let mut sigint = signal(SignalKind::interrupt()).unwrap();
     let mut sigterm = signal(SignalKind::terminate()).unwrap();
     tokio::select! {
-        _ = sigint.recv() => tracing::info!("Caught SIGINT"),
-        _ = sigterm.recv() => tracing::info!("Caught SIGTERM"),
+        _ = sigint.recv() => tracing::info!("SIGNAL - caught SIGINT"),
+        _ = sigterm.recv() => tracing::info!("SIGNAL - caught SIGTERM"),
     }
     handle.graceful_shutdown(Some(Duration::from_secs(30)));
 
@@ -124,6 +124,6 @@ async fn graceful_shutdown(handle: Handle) {
     loop {
         sleep(Duration::from_secs(1)).await;
 
-        tracing::info!("Live connections: {}", handle.connection_count());
+        tracing::info!("EXIT - {} live connections left", handle.connection_count());
     }
 }
