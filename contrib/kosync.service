@@ -5,6 +5,7 @@ After=network.target remote-fs.target nss-lookup.target
 [Service]
 Type=exec
 EnvironmentFile=/etc/conf.d/kosync
+ExecStartPre=+/usr/local/bin/kosync-cert-install.sh
 ExecStart=/usr/local/bin/kosync
 WorkingDirectory=/var/lib/kosync
 User=kosync
