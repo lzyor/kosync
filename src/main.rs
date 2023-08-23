@@ -56,15 +56,6 @@ async fn main() {
         .unwrap_or(defs::DEFAULT_ADDR.to_string())
         .parse()
         .expect("[INIT] Failed to parse addr");
-    // configure certificate and private key
-    let config = RustlsConfig::from_pem_file(
-            PathBuf::from(env::var("KOSYNC_CERT")
-                .unwrap_or(defs::DEFAULT_TLS_CERT.to_string())),
-            PathBuf::from(env::var("KOSYNC_KEY")
-                .unwrap_or(defs::DEFAULT_TLS_PRIVKEY.to_string())),
-        )
-        .await
-        .expect("[INIT] Failed to parse TLS config");
     let config_db_path = defs::DEFAULT_DB_PATH;
 
     // initialize database and router
@@ -98,8 +89,18 @@ async fn main() {
             .await
             .expect("[INIT] Failed to start server");
     } else {
+        // configure certificate and private key
+        let tls_config = RustlsConfig::from_pem_file(
+                PathBuf::from(env::var("KOSYNC_CERT")
+                    .unwrap_or(defs::DEFAULT_TLS_CERT.to_string())),
+                PathBuf::from(env::var("KOSYNC_KEY")
+                    .unwrap_or(defs::DEFAULT_TLS_PRIVKEY.to_string())),
+            )
+            .await
+            .expect("[INIT] Failed to parse TLS config");
+
         tracing::info!("[INIT] listening on {} [TLS]", config_addr);
-        axum_server::bind_rustls(config_addr, config)
+        axum_server::bind_rustls(config_addr, tls_config)
             .handle(handle)
             .serve(router.into_make_service_with_connect_info::<SocketAddr>())
             .await
