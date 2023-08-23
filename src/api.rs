@@ -36,11 +36,20 @@ pub async fn auth<B>(
             .and_then(|v| v.to_str().ok())
             .filter(|v| v.len() <= FIELD_LEN_LIMIT && is_valid_field(v))
     };
-    let addr = req
-        .extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|ci| ci.0)
-        .unwrap();
+    let addr: String = if headers.contains_key("x-real-ip") {
+        headers
+            .get("x-real-ip")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string()
+    } else {
+        req
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ci| ci.0)
+            .unwrap()
+            .to_string()
+    };
     match (check("x-auth-user"), check("x-auth-key")) {
         (Some(user), Some(key)) => match db.get_user(user) {
             Ok(Some(k)) if k == key => {
