@@ -76,8 +76,9 @@ pub async fn auth<B>(
 }
 
 #[instrument(level = Level::DEBUG)]
-pub async fn auth_user(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> impl IntoResponse {
-    tracing::info!("login from {}", addr);
+pub async fn auth_user(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>
+) -> impl IntoResponse {
     (StatusCode::OK, Json(json!({"authorized": "OK"})))
 }
 
@@ -90,6 +91,7 @@ pub struct CreateUser {
 #[instrument(skip(db), level = Level::DEBUG)]
 pub async fn create_user(
     State(db): State<DB>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(data): Json<CreateUser>,
 ) -> Result<impl IntoResponse, Error> {
     if !is_valid_key_field(&data.username) || !is_valid_field(&data.password) {
@@ -148,6 +150,7 @@ pub async fn get_progress(
 pub async fn update_progress(
     State(db): State<DB>,
     Extension(Authed(user)): Extension<Authed>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(mut data): Json<ProgressState>,
 ) -> impl IntoResponse {
     data.timestamp = Some(now_timestamp());
@@ -167,6 +170,8 @@ pub async fn update_progress(
 }
 
 #[instrument(level = Level::DEBUG)]
-pub async fn healthcheck() -> impl IntoResponse {
+pub async fn healthcheck(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
     (StatusCode::OK, Json(json!({"state": "OK"})))
 }
