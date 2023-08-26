@@ -61,8 +61,16 @@ async fn main() {
     // initialize database and router
     let db = db::DB::new(&config_db_path).expect("CONFIG - failed to open database");
     let router = Router::new()
-        .route("/robots.txt", get(api::robots))
-        .route("/users/create", post(api::create_user))
+        .merge(
+            Router::new()
+                .route("/robots.txt", get(api::robots))
+                .route("/users/create", post(api::create_user))
+                .layer(
+                    ServiceBuilder::new()
+                        .layer(TraceLayer::new_for_http())
+                        .layer(middleware::from_fn(api::public))
+                ),
+         )
         .merge(
             Router::new()
                 .route("/users/auth", get(api::auth_user))

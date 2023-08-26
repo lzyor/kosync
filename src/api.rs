@@ -4,9 +4,8 @@
 // 2023 (c) Lzyor
 
 use axum::{
-    extract::{ConnectInfo, Path, State},
+    extract::{Path, State},
     http::{
-        header::HeaderMap,
         Request, StatusCode
     },
     middleware::Next,
@@ -15,7 +14,6 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use std::net::SocketAddr;
 use tracing::{instrument, Level};
 
 use crate::{
@@ -26,6 +24,16 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Authed(pub String);
+
+pub async fn public<B>(
+    req: Request<B>,
+    next: Next<B>,
+) -> Result<Response, Error> {
+    let headers = req.headers();
+    let addr = get_remote_addr(headers, req.extensions());
+    tracing::info!("{} - {} {} {:?} {:?}", addr, req.method(), req.uri(), req.version(), headers);
+    Ok(next.run(req).await)
+}
 
 pub async fn auth<B>(
     State(db): State<DB>,
@@ -39,20 +47,7 @@ pub async fn auth<B>(
             .and_then(|v| v.to_str().ok())
             .filter(|v| v.len() <= FIELD_LEN_LIMIT && is_valid_field(v))
     };
-    let addr: String = if headers.contains_key("x-real-ip") {
-        headers
-            .get("x-real-ip")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or_default()
-            .to_string()
-    } else {
-        req
-            .extensions()
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|ci| ci.0)
-            .unwrap()
-            .to_string()
-    };
+    let addr = get_remote_addr(headers, req.extensions());
     tracing::info!("{} - {} {} {:?}", addr, req.method(), req.uri(), req.version());
     match (check("x-auth-user"), check("x-auth-key")) {
         (Some(user), Some(key)) => match db.get_user(user) {
@@ -81,7 +76,6 @@ pub async fn auth<B>(
 #[instrument(level = Level::DEBUG)]
 pub async fn auth_user(
     Extension(Authed(user)): Extension<Authed>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>
 ) -> impl IntoResponse {
     tracing::info!("{} - LOGIN", user);
     (StatusCode::OK, Json(json!({"authorized": "OK"})))
@@ -96,12 +90,8 @@ pub struct CreateUser {
 #[instrument(skip(db), level = Level::DEBUG)]
 pub async fn create_user(
     State(db): State<DB>,
-    headers: HeaderMap,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(data): Json<CreateUser>,
 ) -> Result<impl IntoResponse, Error> {
-    let addr = get_remote_addr(&headers, &addr);
-    tracing::info!("{} - POST /users/create {:?}", addr, headers);
     if !is_valid_key_field(&data.username) || !is_valid_field(&data.password) {
         tracing::error!("N/A - REGISTER - invalid request: {:?}", data);
         return Err(Error::InvalidRequest);
@@ -132,7 +122,6 @@ pub async fn get_progress(
     State(db): State<DB>,
     Path(doc): Path<String>,
     Extension(Authed(user)): Extension<Authed>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Result<impl IntoResponse, Error> {
     if !is_valid_key_field(&doc) {
         tracing::error!("{} - PULL - 'document' field not provided", user);
@@ -158,7 +147,6 @@ pub async fn get_progress(
 pub async fn update_progress(
     State(db): State<DB>,
     Extension(Authed(user)): Extension<Authed>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(mut data): Json<ProgressState>,
 ) -> impl IntoResponse {
     data.timestamp = Some(now_timestamp());
@@ -180,7 +168,6 @@ pub async fn update_progress(
 #[instrument(level = Level::DEBUG)]
 pub async fn healthcheck(
     Extension(Authed(user)): Extension<Authed>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
     tracing::info!("{} - HEALTH CHECK", user);
     (StatusCode::OK, Json(json!({"state": "OK"})))
@@ -188,10 +175,6 @@ pub async fn healthcheck(
 
 #[instrument(level = Level::DEBUG)]
 pub async fn robots(
-    headers: HeaderMap,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> &'static str {
-    let addr = get_remote_addr(&headers, &addr);
-    tracing::info!("{} - GET /robots.txt {:?}", addr, headers);
     "User-agent: *\nDisallow: /\n"
 }
