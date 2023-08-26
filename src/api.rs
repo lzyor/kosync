@@ -5,7 +5,10 @@
 
 use axum::{
     extract::{ConnectInfo, Path, State},
-    http::{Request, StatusCode},
+    http::{
+        header::HeaderMap,
+        Request, StatusCode
+    },
     middleware::Next,
     response::{IntoResponse, Response},
     Extension, Json,
@@ -18,7 +21,7 @@ use tracing::{instrument, Level};
 use crate::{
     db::DB,
     defs::{Error, ProgressState, FIELD_LEN_LIMIT},
-    utils::{is_valid_field, is_valid_key_field, now_timestamp},
+    utils::{is_valid_field, is_valid_key_field, now_timestamp, get_remote_addr},
 };
 
 #[derive(Debug, Clone)]
@@ -93,9 +96,12 @@ pub struct CreateUser {
 #[instrument(skip(db), level = Level::DEBUG)]
 pub async fn create_user(
     State(db): State<DB>,
+    headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(data): Json<CreateUser>,
 ) -> Result<impl IntoResponse, Error> {
+    let addr = get_remote_addr(&headers, &addr);
+    tracing::info!("{} - POST /users/create {:?}", addr, headers);
     if !is_valid_key_field(&data.username) || !is_valid_field(&data.password) {
         tracing::error!("N/A - REGISTER - invalid request: {:?}", data);
         return Err(Error::InvalidRequest);
@@ -178,4 +184,14 @@ pub async fn healthcheck(
 ) -> impl IntoResponse {
     tracing::info!("{} - HEALTH CHECK", user);
     (StatusCode::OK, Json(json!({"state": "OK"})))
+}
+
+#[instrument(level = Level::DEBUG)]
+pub async fn robots(
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> &'static str {
+    let addr = get_remote_addr(&headers, &addr);
+    tracing::info!("{} - GET /robots.txt {:?}", addr, headers);
+    "User-agent: *\nDisallow: /\n"
 }
