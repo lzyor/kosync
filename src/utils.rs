@@ -1,5 +1,14 @@
 use crate::defs::FIELD_LEN_LIMIT;
 
+use axum::{
+    extract::ConnectInfo,
+    http::{
+        Extensions,
+        header::HeaderMap,
+    },
+};
+use std::net::SocketAddr;
+
 #[inline]
 pub(crate) fn is_valid_field(s: &str) -> bool {
     !s.is_empty() && s.len() < FIELD_LEN_LIMIT
@@ -16,4 +25,25 @@ pub(crate) fn now_timestamp() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+#[inline]
+pub(crate) fn get_remote_addr(
+    headers: &HeaderMap,
+    extensions: &Extensions,
+) -> String {
+    let addr: String = if headers.contains_key("x-real-ip") {
+        headers
+            .get("x-real-ip")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string()
+    } else {
+       extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|ci| ci.0)
+            .unwrap()
+            .to_string()
+    };
+    return addr;
 }

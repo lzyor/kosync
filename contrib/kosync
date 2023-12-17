@@ -1,0 +1,10 @@
+# KOSync config
+
+# Listen on IPv6 + IPv4 (Assuming /proc/sys/net/ipv6/bindv6only is at its default)
+KOSYNC_ADDR="[::]:3000"
+
+# Disable TLS if set
+#KOSYNC_NO_TLS="1"
+# Path to the TLS certs.
+KOSYNC_CERT="tls/cert.pem"
+KOSYNC_KEY="tls/key.pem"
