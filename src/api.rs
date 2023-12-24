@@ -4,10 +4,8 @@
 // 2023 (c) Lzyor
 
 use axum::{
-    extract::{Path, State},
-    http::{
-        Request, StatusCode
-    },
+    extract::{Path, Request, State},
+    http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
     Extension, Json,
@@ -25,9 +23,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Authed(pub String);
 
-pub async fn public<B>(
-    req: Request<B>,
-    next: Next<B>,
+pub async fn public(
+    req: Request,
+    next: Next,
 ) -> Result<Response, Error> {
     let headers = req.headers();
     let addr = get_remote_addr(headers, req.extensions());
@@ -35,10 +33,10 @@ pub async fn public<B>(
     Ok(next.run(req).await)
 }
 
-pub async fn auth<B>(
+pub async fn auth(
     State(db): State<DB>,
-    mut req: Request<B>,
-    next: Next<B>,
+    mut req: Request,
+    next: Next,
 ) -> Result<Response, Error> {
     let headers = req.headers();
     let check = |name| {
