@@ -1,16 +1,1 @@
-*.log
-*.log.*
-*.tmp
-*.pid
-*.lock
-*.sock
-*.socket
-wayland-*
-.cache
-.XDG
-.dbus/session-bus
-cache
-Cache
-tmp
-temp
 node_modules

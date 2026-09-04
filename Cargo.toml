@@ -1,0 +1,26 @@
+[package]
+name = "kosync"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+codegen-units = 1
+opt-level = 3
+lto = true
+panic = 'abort'
+strip = 'debuginfo'
+
+[dependencies]
+axum = { version = "0.6", features = [] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sled = { version = "0", features = ["no_logs"] }
+
+log = { version = "0", features = ["release_max_level_info"] }
+tracing = { version = "0", features = ["release_max_level_info"] }
+tracing-subscriber = "0"
+shadow-rs = "0"
+
+[build-dependencies]
+shadow-rs = "0"
