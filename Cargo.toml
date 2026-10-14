@@ -11,7 +11,8 @@ panic = 'abort'
 strip = 'debuginfo'
 
 [dependencies]
-axum = { version = "0.6", features = [] }
+axum = { version = "0.8", features = [] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -20,7 +21,9 @@ sled = { version = "0", features = ["no_logs"] }
 log = { version = "0", features = ["release_max_level_info"] }
 tracing = { version = "0", features = ["release_max_level_info"] }
 tracing-subscriber = "0"
-shadow-rs = "0"
+shadow-rs = "2"
+tower = { version = "0.5", features = ["tokio", "tracing"] }
+tower-http = { version = "0.7", features = ["tower", "trace", "tracing"] }
 
 [build-dependencies]
-shadow-rs = "0"
+shadow-rs = "2"
