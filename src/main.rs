@@ -8,29 +8,18 @@ mod db;
 mod defs;
 mod utils;
 
+use axum::http::StatusCode;
 use axum::{
     middleware,
     routing::{get, post, put},
     Router,
 };
-use axum::http::StatusCode;
-use axum_server::{
-    Handle,
-    tls_rustls::RustlsConfig,
-};
-use std::{
-    env,
-    net::SocketAddr,
-    path::PathBuf,
-    time::Duration,
-};
-use tokio::{
-    signal,
-    time::sleep,
-};
+use axum_server::{tls_rustls::RustlsConfig, Handle};
+use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
+use tokio::{signal, time::sleep};
+use tower::ServiceBuilder;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
-use tower::ServiceBuilder;
 
 use shadow_rs::shadow;
 shadow!(build);
@@ -71,11 +60,14 @@ async fn main() {
                     ServiceBuilder::new()
                         .layer((
                             TraceLayer::new_for_http(),
-                            TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10))
+                            TimeoutLayer::with_status_code(
+                                StatusCode::REQUEST_TIMEOUT,
+                                Duration::from_secs(10),
+                            ),
                         ))
-                        .layer(middleware::from_fn(api::public))
+                        .layer(middleware::from_fn(api::public)),
                 ),
-         )
+        )
         .merge(
             Router::new()
                 .route("/users/auth", get(api::auth_user))
@@ -86,9 +78,12 @@ async fn main() {
                     ServiceBuilder::new()
                         .layer((
                             TraceLayer::new_for_http(),
-                            TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10))
+                            TimeoutLayer::with_status_code(
+                                StatusCode::REQUEST_TIMEOUT,
+                                Duration::from_secs(10),
+                            ),
                         ))
-                        .layer(middleware::from_fn_with_state(db.clone(), api::auth))
+                        .layer(middleware::from_fn_with_state(db.clone(), api::auth)),
                 ),
         )
         .with_state(db);
@@ -108,13 +103,11 @@ async fn main() {
     } else {
         // configure certificate and private key
         let tls_config = RustlsConfig::from_pem_file(
-                PathBuf::from(env::var("KOSYNC_CERT")
-                    .unwrap_or(defs::DEFAULT_TLS_CERT.to_string())),
-                PathBuf::from(env::var("KOSYNC_KEY")
-                    .unwrap_or(defs::DEFAULT_TLS_PRIVKEY.to_string())),
-            )
-            .await
-            .expect("CONFIG - failed to parse TLS config");
+            PathBuf::from(env::var("KOSYNC_CERT").unwrap_or(defs::DEFAULT_TLS_CERT.to_string())),
+            PathBuf::from(env::var("KOSYNC_KEY").unwrap_or(defs::DEFAULT_TLS_PRIVKEY.to_string())),
+        )
+        .await
+        .expect("CONFIG - failed to parse TLS config");
 
         tracing::info!("INIT - listening on {} [TLS]", config_addr);
         axum_server::bind_rustls(config_addr, tls_config)
