@@ -13,6 +13,7 @@ use axum::{
     routing::{get, post, put},
     Router,
 };
+use axum::http::StatusCode;
 use axum_server::{
     Handle,
     tls_rustls::RustlsConfig,
@@ -24,9 +25,10 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    signal::unix::{signal, SignalKind},
+    signal,
     time::sleep,
 };
+use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 use tower::ServiceBuilder;
 
@@ -67,7 +69,10 @@ async fn main() {
                 .route("/users/create", post(api::create_user))
                 .layer(
                     ServiceBuilder::new()
-                        .layer(TraceLayer::new_for_http())
+                        .layer((
+                            TraceLayer::new_for_http(),
+                            TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10))
+                        ))
                         .layer(middleware::from_fn(api::public))
                 ),
          )
@@ -79,7 +84,10 @@ async fn main() {
                 .route("/healthcheck", get(api::healthcheck))
                 .layer(
                     ServiceBuilder::new()
-                        .layer(TraceLayer::new_for_http())
+                        .layer((
+                            TraceLayer::new_for_http(),
+                            TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10))
+                        ))
                         .layer(middleware::from_fn_with_state(db.clone(), api::auth))
                 ),
         )
@@ -121,13 +129,23 @@ async fn main() {
 
 // graceful shutdown on SIGINT & SIGTERM
 async fn graceful_shutdown(handle: Handle<SocketAddr>) {
-    let mut sigint = signal(SignalKind::interrupt()).unwrap();
-    let mut sigterm = signal(SignalKind::terminate()).unwrap();
+    let sigint = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+    let sigterm = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
     tokio::select! {
-        _ = sigint.recv() => tracing::info!("SIGNAL - caught SIGINT"),
-        _ = sigterm.recv() => tracing::info!("SIGNAL - caught SIGTERM"),
+        _ = sigint => tracing::info!("SIGNAL - caught SIGINT"),
+        _ = sigterm => tracing::info!("SIGNAL - caught SIGTERM"),
     }
-    handle.graceful_shutdown(Some(Duration::from_secs(30)));
+    handle.graceful_shutdown(Some(Duration::from_secs(15)));
 
     // Print a live connection count every second
     loop {
